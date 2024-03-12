@@ -22,7 +22,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float gravity = 30f;
 
     [Header("Looking Parameters")]
-    [SerializeField] private float lookY;
+    [SerializeField] private bool invertX;
+    [SerializeField] private bool invertY;
 
     [Header("Components")]
     private Rigidbody rb;
@@ -40,16 +41,5 @@ public class PlayerController : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
-
-    private void FixedUpdate()
-    {
-        
     }
 }

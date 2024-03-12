@@ -26,20 +26,84 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private bool invertY;
 
     [Header("Components")]
-    private Rigidbody rb;
+    public Animator animator;
+    private CharacterController cController;
     private AudioSource audioSource;
+
+    private Vector3 moveDirection;
+    private Vector2 currentInput;
+    [SerializeField] private float smoothTime = 0.05f;
+    private float currentVelocity;
+    private bool isJumping;
+    private bool isSprinting;
 
     private void Awake()
     {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-
+        cController = GetComponent<CharacterController>();
         audioSource = GetComponent<AudioSource>();
     }
 
     // Start is called before the first frame update
     void Start()
     {
-        rb = GetComponent<Rigidbody>();
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false; 
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        if (CanMove)
+        {
+            // Handle movement input
+            moveDirection = new Vector3(currentInput.x, 0f, currentInput.y);
+            moveDirection = transform.TransformDirection(moveDirection);
+            moveDirection *= isSprinting ? sprintSpeed : walkSpeed;
+
+            // Apply gravity
+            moveDirection.y -= gravity * Time.deltaTime;
+
+            /*var targetAngle = Mathf.Atan2(moveDirection.x, moveDirection.z) * Mathf.Rad2Deg;
+            var angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref currentVelocity, smoothTime);
+            transform.rotation = Quaternion.Euler(0.0f, angle, 0.0f);*/
+
+            // Move the character controller
+            cController.Move(moveDirection * Time.deltaTime);
+
+            // Handle jumping
+            if (canJump && isJumping)
+            {
+                moveDirection.y = jumpForce;
+            }
+        }
+    }
+
+    // Method to handle player input for movement
+    public void OnMove(InputAction.CallbackContext context)
+    {
+        currentInput = context.ReadValue<Vector2>();
+        Debug.Log("You're moving. Your input is: " + currentInput);
+    }
+
+    // Method to handle player input for jumping
+    public void OnJump(InputAction.CallbackContext context)
+    {
+        if (context.started)
+        {
+            isJumping = true;
+            Debug.Log("Jump button pressed");
+        }
+        else if (context.canceled)
+        {
+            isJumping = false;
+            Debug.Log("Jump button canceled");
+        }
+    }
+
+    // Method to handle player input for sprinting
+    public void OnSprint(InputAction.CallbackContext context)
+    {
+        isSprinting = context.ReadValueAsButton();
+        Debug.Log("You're sprinting now!");
     }
 }

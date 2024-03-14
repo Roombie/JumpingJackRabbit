@@ -12,14 +12,21 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private bool canJump = true;
     [SerializeField] private bool canCrouch = true;
 
+    [Header("Player Input")]
+    private Vector2 currentMovementInput;
+    private bool isJumping;
+    private bool isSprinting;
+
     [Header("Movement Parameters")]
     [SerializeField] private float walkSpeed = 5f;
     [SerializeField] private float sprintSpeed = 10f;
     [SerializeField] private float crouchSpeed = 1.5f;
+    [SerializeField] private float rotationSpeed = 10f;
+    private Vector3 moveDirection;
 
     [Header("Jumping Parameters")]
-    [SerializeField] private float jumpForce = 8f;
-    [SerializeField] private float gravity = 30f;
+    [SerializeField] private float jumpForce = 20f;
+    [SerializeField] private Vector3 gravity = new(0f, -12f, 0f);
 
     [Header("Looking Parameters")]
     [SerializeField] private bool invertX;
@@ -29,13 +36,6 @@ public class PlayerController : MonoBehaviour
     public Animator animator;
     private CharacterController cController;
     private AudioSource audioSource;
-
-    private Vector3 moveDirection;
-    private Vector2 currentInput;
-    [SerializeField] private float smoothTime = 0.05f;
-    private float currentVelocity;
-    private bool isJumping;
-    private bool isSprinting;
 
     private void Awake()
     {
@@ -56,33 +56,55 @@ public class PlayerController : MonoBehaviour
         if (CanMove)
         {
             // Handle movement input
-            moveDirection = new Vector3(currentInput.x, 0f, currentInput.y);
-            moveDirection = transform.TransformDirection(moveDirection);
-            moveDirection *= isSprinting ? sprintSpeed : walkSpeed;
+            Vector3 move = new Vector3(currentMovementInput.x, 0f, currentMovementInput.y).normalized;
 
-            // Apply gravity
-            moveDirection.y -= gravity * Time.deltaTime;
+            // Rotate player based on movement direction
+            if (move.magnitude > 0.01f)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(move, Vector3.up);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
+            }
 
-            /*var targetAngle = Mathf.Atan2(moveDirection.x, moveDirection.z) * Mathf.Rad2Deg;
-            var angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref currentVelocity, smoothTime);
-            transform.rotation = Quaternion.Euler(0.0f, angle, 0.0f);*/
+            // Apply speed based on movement direction
+            moveDirection = move * (isSprinting ? sprintSpeed : walkSpeed);
 
-            // Move the character controller
-            cController.Move(moveDirection * Time.deltaTime);
+            ApplyGravity();
 
             // Handle jumping
-            if (canJump && isJumping)
+            if (canJump && isJumping && IsGrounded())
             {
                 moveDirection.y = jumpForce;
             }
+
+            // Move the character controller
+            cController.Move(moveDirection * Time.deltaTime);
         }
     }
+
+    private bool IsGrounded()
+    {
+        return cController.isGrounded; // Check if the player is touching the ground
+    }
+
+    private void ApplyGravity()
+    {
+        if (!IsGrounded()) // Apply gravity only if the player is not grounded
+        {
+            moveDirection.y += gravity.y * Time.deltaTime;
+        }
+        else if (moveDirection.y < 0) // Ensure that the y-component of moveDirection is zero when grounded to prevent accumulating gravity
+        {
+            moveDirection.y = 0f;
+        }
+    }
+
+    #region Input
 
     // Method to handle player input for movement
     public void OnMove(InputAction.CallbackContext context)
     {
-        currentInput = context.ReadValue<Vector2>();
-        Debug.Log("You're moving. Your input is: " + currentInput);
+        currentMovementInput = context.ReadValue<Vector2>();
+        Debug.Log("You're moving. Your input is: " + currentMovementInput);
     }
 
     // Method to handle player input for jumping
@@ -106,4 +128,5 @@ public class PlayerController : MonoBehaviour
         isSprinting = context.ReadValueAsButton();
         Debug.Log("You're sprinting now!");
     }
+    #endregion
 }

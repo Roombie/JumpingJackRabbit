@@ -25,8 +25,13 @@ public class PlayerController : MonoBehaviour
     private Vector3 moveDirection;
 
     [Header("Jumping Parameters")]
-    [SerializeField] private float jumpForce = 20f;
+    [SerializeField] private float jumpForce = 10f;
     [SerializeField] private Vector3 gravity = new(0f, -12f, 0f);
+    private float fallVelocity;
+    private float coyoteTime = 0.5f;
+    private float coyoteTimeCounter;
+    private float jumpBufferTime = 0.25f;
+    private float jumpBufferCounter;
 
     [Header("Looking Parameters")]
     [SerializeField] private bool invertX;
@@ -69,12 +74,7 @@ public class PlayerController : MonoBehaviour
             moveDirection = move * (isSprinting ? sprintSpeed : walkSpeed);
 
             ApplyGravity();
-
-            // Handle jumping
-            if (canJump && isJumping && IsGrounded())
-            {
-                moveDirection.y = jumpForce;
-            }
+            ApplyJump();
 
             // Move the character controller
             cController.Move(moveDirection * Time.deltaTime);
@@ -86,20 +86,76 @@ public class PlayerController : MonoBehaviour
         return cController.isGrounded; // Check if the player is touching the ground
     }
 
+    #region Gravity
     private void ApplyGravity()
     {
         if (!IsGrounded()) // Apply gravity only if the player is not grounded
         {
-            moveDirection.y += gravity.y * Time.deltaTime;
+            fallVelocity += gravity.y * Time.deltaTime;
+            moveDirection.y = fallVelocity;
         }
-        else if (moveDirection.y < 0) // Ensure that the y-component of moveDirection is zero when grounded to prevent accumulating gravity
+        else // Player is grounded
         {
-            moveDirection.y = 0f;
+            // Reset fall velocity when grounded
+            fallVelocity = 0f;
+
+            // Ensure that the y-component of moveDirection is zero when grounded
+            if (moveDirection.y < 0)
+            {
+                moveDirection.y = 0f;
+            }
         }
     }
+    #endregion  
+
+    #region Jump
+    private void ApplyJump()
+    {
+        if (IsGrounded())
+        {
+            coyoteTimeCounter = coyoteTime;
+            Debug.Log("Coyote Time: Player is grounded. Coyote time counter reset.");
+        }
+        else
+        {
+            coyoteTimeCounter -= Time.deltaTime;
+            Debug.Log("Coyote Time Counter: " + coyoteTimeCounter);
+        }
+
+        // If the player presses the jump button, start the input buffer timer
+        if (isJumping)
+        {
+            jumpBufferCounter = jumpBufferTime;
+        }
+        else
+        {
+            // Decrement the input buffer timer
+            jumpBufferCounter -= Time.deltaTime;
+        }
+
+        // If the input buffer timer and coyote timer are still running, perform the jump
+        if (coyoteTimeCounter > 0f && jumpBufferCounter > 0f)
+        {
+            Debug.Log("Jump input buffering applied!");
+
+            // Apply the jump force
+            fallVelocity = jumpForce;
+            moveDirection.y = fallVelocity;
+
+            jumpBufferCounter = 0f;
+            isJumping = true; // Set jump initiated
+        }
+
+        // Reset jump if moveDirection.y becomes non-positive
+        if (!isJumping && moveDirection.y <= 0f)
+        {
+            isJumping = false;
+            Debug.Log("Coyote Time applied!");
+        }
+    }
+    #endregion  
 
     #region Input
-
     // Method to handle player input for movement
     public void OnMove(InputAction.CallbackContext context)
     {

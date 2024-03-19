@@ -1,12 +1,8 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
-    public bool CanMove { get; private set; } = true;
-
     [Header("Functional Options")]
     [SerializeField] private bool canSprint = true;
     [SerializeField] private bool canJump = true;
@@ -20,31 +16,26 @@ public class PlayerController : MonoBehaviour
     [Header("Movement Parameters")]
     [SerializeField] private float walkSpeed = 5f;
     [SerializeField] private float sprintSpeed = 10f;
-    [SerializeField] private float crouchSpeed = 1.5f;
-    [SerializeField] private float rotationSpeed = 10f;
-    private Vector3 moveDirection;
+    [SerializeField] private float rotationSpeed = 25f;
+    private Rigidbody rb;
+
+    [Header("Ground Check")]
+    [SerializeField] private float groundRayLength = 0.1f;
+    private Color groundRayColor = Color.green;
 
     [Header("Jumping Parameters")]
-    [SerializeField] private float jumpForce = 10f;
-    [SerializeField] private Vector3 gravity = new(0f, -12f, 0f);
-    private float fallVelocity;
-    private float coyoteTime = 0.5f;
-    private float coyoteTimeCounter;
-    private float jumpBufferTime = 0.25f;
-    private float jumpBufferCounter;
+    [SerializeField] private float jumpForce = 8f;
 
-    [Header("Looking Parameters")]
-    [SerializeField] private bool invertX;
-    [SerializeField] private bool invertY;
+    [Header("Gravity")]
+    [SerializeField] private float gravity = 12f;
 
     [Header("Components")]
     public Animator animator;
-    private CharacterController cController;
     private AudioSource audioSource;
 
     private void Awake()
     {
-        cController = GetComponent<CharacterController>();
+        rb = GetComponent<Rigidbody>();
         audioSource = GetComponent<AudioSource>();
     }
 
@@ -52,108 +43,66 @@ public class PlayerController : MonoBehaviour
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false; 
+        Cursor.visible = false;
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (CanMove)
+        HandleMovementInput();
+        HandleJumpInput();
+
+        // Dynamically change ground ray color during runtime
+        groundRayColor = IsGrounded() ? Color.green : Color.red;
+    }
+
+    private void HandleMovementInput()
+    {
+        Vector3 move = new Vector3(currentMovementInput.x, 0f, currentMovementInput.y).normalized;
+        MovePlayer(move);
+        RotatePlayer(move);
+    }
+
+    private void MovePlayer(Vector3 moveDirection)
+    {
+        Vector3 velocity = moveDirection * (isSprinting ? sprintSpeed : walkSpeed);
+        velocity.y = rb.velocity.y;
+        rb.velocity = velocity;
+    }
+
+    private void RotatePlayer(Vector3 moveDirection)
+    {
+        if (moveDirection.magnitude > 0.01f)
         {
-            // Handle movement input
-            Vector3 move = new Vector3(currentMovementInput.x, 0f, currentMovementInput.y).normalized;
+            Quaternion targetRotation = Quaternion.LookRotation(moveDirection, Vector3.up);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
+        }
+    }
 
-            // Rotate player based on movement direction
-            if (move.magnitude > 0.01f)
-            {
-                Quaternion targetRotation = Quaternion.LookRotation(move, Vector3.up);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
-            }
+    private void HandleJumpInput()
+    {
+        if (canJump && isJumping)
+        {
+            Jump();
+        }
+    }
 
-            // Apply speed based on movement direction
-            moveDirection = move * (isSprinting ? sprintSpeed : walkSpeed);
-
-            ApplyGravity();
-            ApplyJump();
-
-            // Move the character controller
-            cController.Move(moveDirection * Time.deltaTime);
+    private void Jump()
+    {
+        if (IsGrounded())
+        {
+            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            isJumping = false;
         }
     }
 
     private bool IsGrounded()
     {
-        return cController.isGrounded; // Check if the player is touching the ground
+        RaycastHit hit;
+        bool isHit = Physics.Raycast(transform.position, Vector3.down, out hit, groundRayLength);
+
+        return isHit;
     }
-
-    #region Gravity
-    private void ApplyGravity()
-    {
-        if (!IsGrounded()) // Apply gravity only if the player is not grounded
-        {
-            fallVelocity += gravity.y * Time.deltaTime;
-            moveDirection.y = fallVelocity;
-        }
-        else // Player is grounded
-        {
-            // Reset fall velocity when grounded
-            fallVelocity = 0f;
-
-            // Ensure that the y-component of moveDirection is zero when grounded
-            if (moveDirection.y < 0)
-            {
-                moveDirection.y = 0f;
-            }
-        }
-    }
-    #endregion  
-
-    #region Jump
-    private void ApplyJump()
-    {
-        if (IsGrounded())
-        {
-            coyoteTimeCounter = coyoteTime;
-            Debug.Log("Coyote Time: Player is grounded. Coyote time counter reset.");
-        }
-        else
-        {
-            coyoteTimeCounter -= Time.deltaTime;
-            Debug.Log("Coyote Time Counter: " + coyoteTimeCounter);
-        }
-
-        // If the player presses the jump button, start the input buffer timer
-        if (isJumping)
-        {
-            jumpBufferCounter = jumpBufferTime;
-        }
-        else
-        {
-            // Decrement the input buffer timer
-            jumpBufferCounter -= Time.deltaTime;
-        }
-
-        // If the input buffer timer and coyote timer are still running, perform the jump
-        if (coyoteTimeCounter > 0f && jumpBufferCounter > 0f)
-        {
-            Debug.Log("Jump input buffering applied!");
-
-            // Apply the jump force
-            fallVelocity = jumpForce;
-            moveDirection.y = fallVelocity;
-
-            jumpBufferCounter = 0f;
-            isJumping = true; // Set jump initiated
-        }
-
-        // Reset jump if moveDirection.y becomes non-positive
-        if (!isJumping && moveDirection.y <= 0f)
-        {
-            isJumping = false;
-            Debug.Log("Coyote Time applied!");
-        }
-    }
-    #endregion  
 
     #region Input
     // Method to handle player input for movement
@@ -185,4 +134,10 @@ public class PlayerController : MonoBehaviour
         Debug.Log("You're sprinting now!");
     }
     #endregion
+
+    private void OnDrawGizmos()
+    {
+        // Draw a raycast from the player's position downwards with dynamically adjustable parameters
+        Debug.DrawRay(transform.position, Vector3.down * groundRayLength, groundRayColor);
+    }
 }

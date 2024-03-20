@@ -25,9 +25,11 @@ public class PlayerController : MonoBehaviour
 
     [Header("Jumping Parameters")]
     [SerializeField] private float jumpForce = 8f;
+    [SerializeField] private float coyoteTime = 0.2f; 
 
     [Header("Gravity")]
     [SerializeField] private float gravity = 12f;
+    [SerializeField] private float fallMultiplier = 2.5f;
 
     [Header("Components")]
     public Animator animator;
@@ -48,12 +50,24 @@ public class PlayerController : MonoBehaviour
 
     // Update is called once per frame
     void Update()
+    {    
+        // Dynamically change ground ray color during runtime
+        groundRayColor = IsGrounded() ? Color.green : Color.red;
+
+        
+    }
+
+    private void FixedUpdate()
     {
         HandleMovementInput();
         HandleJumpInput();
 
-        // Dynamically change ground ray color during runtime
-        groundRayColor = IsGrounded() ? Color.green : Color.red;
+        // Faster fall curve
+        if (rb.velocity.y < 0)
+        {
+            rb.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
+        }
+
     }
 
     private void HandleMovementInput()
@@ -91,7 +105,13 @@ public class PlayerController : MonoBehaviour
     {
         if (IsGrounded())
         {
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            // Calculate additional jump force based on player's current velocity
+            float additionalJumpForce = Mathf.Max(0, -rb.velocity.y) * 0.5f;
+
+            // Apply jump force
+            rb.AddForce(Vector3.up * (jumpForce + additionalJumpForce), ForceMode.Impulse);
+
+            // Reset jump flag
             isJumping = false;
         }
     }

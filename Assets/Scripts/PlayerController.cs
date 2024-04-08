@@ -20,12 +20,19 @@ public class PlayerController : MonoBehaviour
     private Rigidbody rb;
 
     [Header("Ground Check")]
+    [SerializeField] private LayerMask groundLayer;
     [SerializeField] private float groundRayLength = 0.1f;
+    [SerializeField] private Vector3 boxCastSize = new Vector3(0.5f, 0.05f, 0.5f);
     private Color groundRayColor = Color.green;
 
     [Header("Jumping Parameters")]
-    [SerializeField] private float jumpForce = 8f;
-    [SerializeField] private float coyoteTime = 0.2f; 
+    [SerializeField] private float jumpForce = 10f;
+    [Tooltip("How long I should buffer your jump input for (seconds)")]
+    [SerializeField] private float jumpBuffer = 0.1f;
+    [Tooltip("How long you have to jump after leaving a ledge (seconds)")]
+    private float jumpBufferCounter;
+    [SerializeField] private float coyoteTime = 0.2f;
+    private float coyoteTimeCounter;
 
     [Header("Gravity")]
     [SerializeField] private float gravity = 12f;
@@ -35,39 +42,32 @@ public class PlayerController : MonoBehaviour
     public Animator animator;
     private AudioSource audioSource;
 
-    private void Awake()
+    // Start is called before the first frame update
+    void Start()
     {
         rb = GetComponent<Rigidbody>();
         audioSource = GetComponent<AudioSource>();
     }
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-    }
-
     // Update is called once per frame
     void Update()
-    {    
+    {
         // Dynamically change ground ray color during runtime
         groundRayColor = IsGrounded() ? Color.green : Color.red;
-
-        
     }
 
     private void FixedUpdate()
     {
         HandleMovementInput();
         HandleJumpInput();
+        CheckJumpBuffer();
+        CheckCoyoteTime();
 
         // Faster fall curve
         if (rb.velocity.y < 0)
         {
             rb.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
         }
-
     }
 
     private void HandleMovementInput()
@@ -95,34 +95,75 @@ public class PlayerController : MonoBehaviour
 
     private void HandleJumpInput()
     {
-        if (canJump && isJumping)
+        // Check if the jump button is pressed
+        if (isJumping)
         {
-            Jump();
+            // If the player is grounded or within coyote time, jump immediately
+            if (IsGrounded() || coyoteTimeCounter > 0f)
+            {
+                Jump();
+            }
+            else
+            {
+                // Otherwise, start the jump buffer countdown
+                jumpBufferCounter = jumpBuffer;
+            }
         }
     }
 
     private void Jump()
     {
-        if (IsGrounded())
+        // If the player is grounded or within coyote time, allow jumping
+        if (IsGrounded() || coyoteTimeCounter > 0f)
         {
-            // Calculate additional jump force based on player's current velocity
-            float additionalJumpForce = Mathf.Max(0, -rb.velocity.y) * 0.5f;
+            // Set the y component of the velocity to the jump force
+            rb.velocity = new Vector3(rb.velocity.x, jumpForce, rb.velocity.z);
 
-            // Apply jump force
-            rb.AddForce(Vector3.up * (jumpForce + additionalJumpForce), ForceMode.Impulse);
-
-            // Reset jump flag
+            // Reset jump flag and counters
             isJumping = false;
+            jumpBufferCounter = 0f;
+            coyoteTimeCounter = 0f;
         }
     }
 
+    private void CheckJumpBuffer()
+    {
+        // If the player pressed the jump button recently and is still within the buffer time, jump
+        if (jumpBufferCounter > 0f)
+        {
+            Jump();
+            jumpBufferCounter = 0f; // Reset the buffer counter after jumping
+        }
+        else
+        {
+            jumpBufferCounter = 0f; // Reset the buffer counter if the buffer time is over
+        }
+    }
+
+    private void CheckCoyoteTime()
+    {
+        if (IsGrounded())
+        {
+            // Reset coyote time counter when the player is grounded
+            coyoteTimeCounter = coyoteTime;
+        }
+        else if (coyoteTimeCounter > 0f)
+        {
+            // Decrement coyote time counter if not grounded but still within coyote time
+            coyoteTimeCounter -= Time.fixedDeltaTime;
+        }
+    }
+
+
     private bool IsGrounded()
     {
-        RaycastHit hit;
-        bool isHit = Physics.Raycast(transform.position, Vector3.down, out hit, groundRayLength);
+        // Perform a boxcast or spherecast to check for ground
+        bool isHit = Physics.BoxCast(transform.position, boxCastSize, Vector3.down, out RaycastHit hit, Quaternion.identity, groundRayLength, groundLayer);
+        // bool isHit = Physics.SphereCast(transform.position, castRadius, Vector3.down, out RaycastHit hit, groundRayLength, groundLayer);
 
         return isHit;
     }
+
 
     #region Input
     // Method to handle player input for movement
@@ -157,7 +198,9 @@ public class PlayerController : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        // Draw a raycast from the player's position downwards with dynamically adjustable parameters
-        Debug.DrawRay(transform.position, Vector3.down * groundRayLength, groundRayColor);
+        // Draw a box or sphere representing the cast
+        Gizmos.color = groundRayColor;
+        // Draw the box cast at the player's position
+        Gizmos.DrawWireCube(transform.position - new Vector3(0, groundRayLength, 0), boxCastSize); // Adjust position for box cast
     }
 }

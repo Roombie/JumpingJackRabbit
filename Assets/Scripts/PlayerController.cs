@@ -15,6 +15,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Jumping")]
     [SerializeField] private float jumpForce = 10f;
+    [SerializeField] private float jumpMultiplier = 1f;
     [SerializeField] private float jumpDelay = 0.25f;
     [SerializeField] private int jumpCount = 0;
     [SerializeField] private int maxJumpCount = 2;
@@ -25,11 +26,11 @@ public class PlayerController : MonoBehaviour
 
     [Header("Gravity")]
     [SerializeField] private float riseGravity = 0.25f;
-    [SerializeField] private float fallGravity = 1.5f;
+    [SerializeField] private float fallMultiplier = 1.5f;
 
     [Header("Physics")]
     [SerializeField] private float linearDrag = 4f;
-    [SerializeField] private float runlinearDrag = 2f;
+    // [SerializeField] private float runlinearDrag = 2f;
 
     [Header("Ground Check")]
     [SerializeField] private LayerMask groundLayer;
@@ -38,9 +39,11 @@ public class PlayerController : MonoBehaviour
 
     private Vector2 currentMovementInput;
     private bool isJumping;
+    private bool jumpButtonPressed = false;
     private bool isSprinting;
 
     private Rigidbody rb;
+    private AudioSource audioSource;
 
     private float jumpTimer;
     private float jumpBufferCounter;
@@ -49,6 +52,7 @@ public class PlayerController : MonoBehaviour
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
+        audioSource = GetComponent<AudioSource>();
     }
 
     private void Update()
@@ -61,7 +65,7 @@ public class PlayerController : MonoBehaviour
     private void FixedUpdate()
     {
         HandleMovementInput();
-        ApplyGravity();
+        ModifyPhysics();
     }
 
     private void HandleMovementInput()
@@ -74,8 +78,6 @@ public class PlayerController : MonoBehaviour
     #region MoveLogic
     private void MovePlayer(Vector3 moveDirection)
     {
-        float drag = isSprinting ? runlinearDrag : linearDrag;
-        rb.drag = drag;
         Vector3 velocity = moveDirection * (isSprinting ? sprintSpeed : walkSpeed);
         velocity.y = rb.velocity.y;
         rb.velocity = velocity;
@@ -93,12 +95,13 @@ public class PlayerController : MonoBehaviour
 
     private void Jump()
     {
-        if (isJumping && canJump) // Initiated the jump and jumping is allowed
+        if (jumpButtonPressed) // Check if the jump button was pressed
         {
-            if (coyoteTimeCounter > 0f || jumpBufferCounter > 0f && !isJumping && Time.time < jumpTimer)  // Initiated the jump and jumping is allowed
+            if (coyoteTimeCounter > 0f || jumpBufferCounter > 0f && !isJumping && Time.time > jumpTimer)
             {
-                rb.velocity = new Vector3(rb.velocity.x, jumpForce, rb.velocity.z);
+                rb.velocity = new Vector3(rb.velocity.x, jumpForce * jumpMultiplier, rb.velocity.z);
             }
+            jumpButtonPressed = false;
         }
     }
 
@@ -127,7 +130,7 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    private void ApplyGravity()
+    private void ModifyPhysics()
     {
         if (rb.velocity.y > 0 && isJumping) // Less or no gravity while jumping up
         {
@@ -135,7 +138,33 @@ public class PlayerController : MonoBehaviour
         }
         else // Normal gravity when jumping down
         {
-            rb.velocity += fallGravity * Physics.gravity.y * Time.fixedDeltaTime * Vector3.up;
+            rb.velocity += fallMultiplier * Physics.gravity.y * Time.fixedDeltaTime * Vector3.up;
+        }
+
+        if (IsGrounded()) // When it's on the ground
+        {
+            if (Mathf.Abs(currentMovementInput.x) < 0.4f) // And it's moving horizontally
+            {
+                rb.drag = linearDrag; 
+            }
+            else
+            {
+                rb.drag = 0f;
+            }
+            rb.useGravity = false;
+        }
+        else // When it's on the air
+        {
+            rb.useGravity = true; // Enabling gravity when not grounded
+            rb.drag = linearDrag * 0.15f; 
+            if (rb.velocity.y < 0)
+            {
+                rb.velocity += fallMultiplier * fallMultiplier * Time.fixedDeltaTime * Vector3.up; // Increasing fall speed
+            }
+            else if (rb.velocity.y > 0 && !isJumping)
+            {
+                rb.velocity += fallMultiplier * (fallMultiplier / 2) * Time.fixedDeltaTime * Vector3.up; // Applying half of the gravity
+            }
         }
     }
 
@@ -162,6 +191,7 @@ public class PlayerController : MonoBehaviour
 
     public void OnJumpPressed()
     {
+        jumpButtonPressed = true;
         jumpTimer = Time.time + jumpDelay;
         isJumping = true;
     }

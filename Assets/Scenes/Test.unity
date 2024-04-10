@@ -2429,13 +2429,15 @@ MonoBehaviour:
   sprintSpeed: 7.5
   rotationSpeed: 15
   jumpForce: 10
-  jumpBuffer: 0.2
+  jumpMultiplier: 1
+  jumpDelay: 0.25
+  jumpCount: 0
+  maxJumpCount: 2
+  jumpBufferTime: 0.1
   coyoteTime: 0.125
-  hangTimeDuration: 0.2
   riseGravity: 0.25
-  fallGravity: 1.5
+  fallMultiplier: 1.5
   linearDrag: 3
-  runlinearDrag: 1.5
   groundLayer:
     serializedVersion: 2
     m_Bits: 9

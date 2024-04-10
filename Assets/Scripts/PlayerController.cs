@@ -6,68 +6,62 @@ public class PlayerController : MonoBehaviour
     [Header("Functional Options")]
     [SerializeField] private bool canSprint = true;
     [SerializeField] private bool canJump = true;
-    [SerializeField] private bool canCrouch = true;
 
-    [Header("Player Input")]
-    private Vector2 currentMovementInput;
-    private bool isJumping;
-    private bool isSprinting;
-
-    [Header("Movement Parameters")]
+    [Header("Movement")]
     [SerializeField] private float walkSpeed = 5f;
     [SerializeField] private float sprintSpeed = 10f;
-    [SerializeField] private float rotationSpeed = 25f;
-    private Rigidbody rb;
+    // [SerializeField] private float slowDownForce = 5f;
+    [SerializeField] private float rotationSpeed = 15f;
+
+    [Header("Jumping")]
+    [SerializeField] private float jumpForce = 10f;
+    [SerializeField] private float jumpDelay = 0.25f;
+    [SerializeField] private int jumpCount = 0;
+    [SerializeField] private int maxJumpCount = 2;
+    [Tooltip("How long I should buffer your jump input for (seconds)")]
+    [SerializeField] private float jumpBufferTime = 0.1f;
+    [Tooltip("How long you have to jump after leaving a ledge (seconds)")]
+    [SerializeField] private float coyoteTime = 0.2f;
+
+    [Header("Gravity")]
+    [SerializeField] private float riseGravity = 0.25f;
+    [SerializeField] private float fallGravity = 1.5f;
+
+    [Header("Physics")]
+    [SerializeField] private float linearDrag = 4f;
+    [SerializeField] private float runlinearDrag = 2f;
 
     [Header("Ground Check")]
     [SerializeField] private LayerMask groundLayer;
     [SerializeField] private float groundRayLength = 0.1f;
-    [SerializeField] private Vector3 boxCastSize = new Vector3(0.5f, 0.05f, 0.5f);
-    private Color groundRayColor = Color.green;
+    [SerializeField] private Vector3 boxCastSize = new(0.5f, 0.05f, 0.5f);
 
-    [Header("Jumping Parameters")]
-    [SerializeField] private float jumpForce = 10f;
-    [Tooltip("How long I should buffer your jump input for (seconds)")]
-    [SerializeField] private float jumpBuffer = 0.1f;
-    [Tooltip("How long you have to jump after leaving a ledge (seconds)")]
+    private Vector2 currentMovementInput;
+    private bool isJumping;
+    private bool isSprinting;
+
+    private Rigidbody rb;
+
+    private float jumpTimer;
     private float jumpBufferCounter;
-    [SerializeField] private float coyoteTime = 0.2f;
     private float coyoteTimeCounter;
 
-    [Header("Gravity")]
-    [SerializeField] private float gravity = 12f;
-    [SerializeField] private float fallMultiplier = 2.5f;
-
-    [Header("Components")]
-    public Animator animator;
-    private AudioSource audioSource;
-
-    // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
         rb = GetComponent<Rigidbody>();
-        audioSource = GetComponent<AudioSource>();
     }
 
-    // Update is called once per frame
-    void Update()
+    private void Update()
     {
-        // Dynamically change ground ray color during runtime
-        groundRayColor = IsGrounded() ? Color.green : Color.red;
+        Jump();
+        CheckJumpBuffer();
+        CheckCoyoteTime();
     }
 
     private void FixedUpdate()
     {
         HandleMovementInput();
-        HandleJumpInput();
-        CheckJumpBuffer();
-        CheckCoyoteTime();
-
-        // Faster fall curve
-        if (rb.velocity.y < 0)
-        {
-            rb.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
-        }
+        ApplyGravity();
     }
 
     private void HandleMovementInput()
@@ -77,8 +71,11 @@ public class PlayerController : MonoBehaviour
         RotatePlayer(move);
     }
 
+    #region MoveLogic
     private void MovePlayer(Vector3 moveDirection)
     {
+        float drag = isSprinting ? runlinearDrag : linearDrag;
+        rb.drag = drag;
         Vector3 velocity = moveDirection * (isSprinting ? sprintSpeed : walkSpeed);
         velocity.y = rb.velocity.y;
         rb.velocity = velocity;
@@ -92,115 +89,108 @@ public class PlayerController : MonoBehaviour
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
         }
     }
+    #endregion
 
-    private void HandleJumpInput()
+    private void Jump()
     {
-        // Check if the jump button is pressed
-        if (isJumping)
+        if (isJumping && canJump) // Initiated the jump and jumping is allowed
         {
-            // If the player is grounded or within coyote time, jump immediately
-            if (IsGrounded() || coyoteTimeCounter > 0f)
+            if (coyoteTimeCounter > 0f || jumpBufferCounter > 0f && !isJumping && Time.time < jumpTimer)  // Initiated the jump and jumping is allowed
             {
-                Jump();
-            }
-            else
-            {
-                // Otherwise, start the jump buffer countdown
-                jumpBufferCounter = jumpBuffer;
+                rb.velocity = new Vector3(rb.velocity.x, jumpForce, rb.velocity.z);
             }
         }
     }
 
-    private void Jump()
+    // Update the CheckCoyoteTime method to reset jumpTimer when grounded
+    private void CheckCoyoteTime()
     {
-        // If the player is grounded or within coyote time, allow jumping
-        if (IsGrounded() || coyoteTimeCounter > 0f)
+        if (!IsGrounded()) // If the player isn't on the ground
         {
-            // Set the y component of the velocity to the jump force
-            rb.velocity = new Vector3(rb.velocity.x, jumpForce, rb.velocity.z);
-
-            // Reset jump flag and counters
-            isJumping = false;
-            jumpBufferCounter = 0f;
-            coyoteTimeCounter = 0f;
+            coyoteTimeCounter -= Time.deltaTime;
+        }
+        else
+        {
+            coyoteTimeCounter = coyoteTime;
         }
     }
 
     private void CheckJumpBuffer()
     {
-        // If the player pressed the jump button recently and is still within the buffer time, jump
-        if (jumpBufferCounter > 0f)
+        if (isJumping) // When the player initiates a jump
         {
-            Jump();
-            jumpBufferCounter = 0f; // Reset the buffer counter after jumping
+            jumpBufferCounter = jumpBufferTime; // Set jump buffer counter when jump is initiated
         }
         else
         {
-            jumpBufferCounter = 0f; // Reset the buffer counter if the buffer time is over
+            jumpBufferCounter -= Time.deltaTime; // Decrement jump buffer counter over time
         }
     }
 
-    private void CheckCoyoteTime()
+    private void ApplyGravity()
     {
-        if (IsGrounded())
+        if (rb.velocity.y > 0 && isJumping) // Less or no gravity while jumping up
         {
-            // Reset coyote time counter when the player is grounded
-            coyoteTimeCounter = coyoteTime;
+            rb.velocity += riseGravity * Time.fixedDeltaTime * Vector3.up;
         }
-        else if (coyoteTimeCounter > 0f)
+        else // Normal gravity when jumping down
         {
-            // Decrement coyote time counter if not grounded but still within coyote time
-            coyoteTimeCounter -= Time.fixedDeltaTime;
+            rb.velocity += fallGravity * Physics.gravity.y * Time.fixedDeltaTime * Vector3.up;
         }
     }
-
 
     private bool IsGrounded()
     {
-        // Perform a boxcast or spherecast to check for ground
-        bool isHit = Physics.BoxCast(transform.position, boxCastSize, Vector3.down, out RaycastHit hit, Quaternion.identity, groundRayLength, groundLayer);
-        // bool isHit = Physics.SphereCast(transform.position, castRadius, Vector3.down, out RaycastHit hit, groundRayLength, groundLayer);
-
-        return isHit;
+        return Physics.BoxCast(transform.position, boxCastSize, Vector3.down, Quaternion.identity, groundRayLength, groundLayer);
     }
 
-
     #region Input
-    // Method to handle player input for movement
     public void OnMove(InputAction.CallbackContext context)
     {
         currentMovementInput = context.ReadValue<Vector2>();
-        Debug.Log("You're moving. Your input is: " + currentMovementInput);
     }
 
-    // Method to handle player input for jumping
     public void OnJump(InputAction.CallbackContext context)
     {
-        if (context.started)
-        {
-            isJumping = true;
-            Debug.Log("Jump button pressed");
+        if (context.performed) {
+            OnJumpPressed();
         }
-        else if (context.canceled)
-        {
-            isJumping = false;
-            Debug.Log("Jump button canceled");
+        if (context.canceled) {
+            OnJumpReleased();
         }
     }
 
-    // Method to handle player input for sprinting
+    public void OnJumpPressed()
+    {
+        jumpTimer = Time.time + jumpDelay;
+        isJumping = true;
+    }
+
+    public void OnJumpReleased()
+    {
+        isJumping = false;
+    }
+
     public void OnSprint(InputAction.CallbackContext context)
     {
-        isSprinting = context.ReadValueAsButton();
-        Debug.Log("You're sprinting now!");
+        if (context.performed) {
+            OnRunPressed(context);
+        }
+        if (context.canceled) {
+            OnRunReleased();
+        }
+    }
+
+    public void OnRunPressed(InputAction.CallbackContext context)
+    {
+        if (IsGrounded() && canSprint) {
+            isSprinting = context.ReadValueAsButton();
+        }
+    }
+
+    public void OnRunReleased()
+    {
+        isSprinting = false;
     }
     #endregion
-
-    private void OnDrawGizmos()
-    {
-        // Draw a box or sphere representing the cast
-        Gizmos.color = groundRayColor;
-        // Draw the box cast at the player's position
-        Gizmos.DrawWireCube(transform.position - new Vector3(0, groundRayLength, 0), boxCastSize); // Adjust position for box cast
-    }
 }

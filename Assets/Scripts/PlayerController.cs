@@ -39,8 +39,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Vector3 boxCastSize = new(0.5f, 0.05f, 0.5f);
 
     private Vector2 currentMovementInput;
-    public bool isJumping;
-    public bool jumpButtonPressed = false;
+    private bool isJumping;
+    private bool jumpButtonPressed = false;
     private bool isSprinting;
 
     private Rigidbody rb;
@@ -100,7 +100,7 @@ public class PlayerController : MonoBehaviour
         if ((jumpButtonPressed && coyoteTimeCounter > 0f && !inAirFromJump && !isJumping) || (jumpBufferCounter > 0f && IsGrounded()))
         {
             rb.velocity = new Vector3(rb.velocity.x, jumpForce * jumpMultiplier, rb.velocity.z);
-            isJumping = true;
+            isJumping = true; 
             inAirFromJump = true;
         }
     }
@@ -150,7 +150,7 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                rb.drag = 0f;
+                rb.drag = 0f; 
             }
             rb.useGravity = false;
         }
@@ -217,7 +217,7 @@ public class PlayerController : MonoBehaviour
 
     public void OnRunPressed(InputAction.CallbackContext context)
     {
-        if (IsGrounded() && canSprint)
+        if (IsGrounded() && canSprint) // When the player is on the ground and canSprint is available
         {
             isSprinting = context.ReadValueAsButton();
         }
@@ -228,4 +228,17 @@ public class PlayerController : MonoBehaviour
         isSprinting = false;
     }
     #endregion
+
+    private void OnDrawGizmos()
+    {
+        // Set color based on whether the player is grounded or not
+        if (IsGrounded()) {
+            Gizmos.color = Color.green; // Grounded
+        } else {
+            Gizmos.color = Color.red; // In the air
+        }
+
+        // Draw the boxcast
+        Gizmos.DrawWireCube(transform.position + Vector3.down * groundRayLength, boxCastSize * 2);
+    }
 }

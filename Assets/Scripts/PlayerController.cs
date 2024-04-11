@@ -1,3 +1,4 @@
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -38,14 +39,14 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Vector3 boxCastSize = new(0.5f, 0.05f, 0.5f);
 
     private Vector2 currentMovementInput;
-    private bool isJumping;
-    private bool jumpButtonPressed = false;
+    public bool isJumping;
+    public bool jumpButtonPressed = false;
     private bool isSprinting;
 
     private Rigidbody rb;
     private AudioSource audioSource;
 
-    private float jumpTimer;
+    private bool inAirFromJump = false;
     private float jumpBufferCounter;
     private float coyoteTimeCounter;
 
@@ -60,6 +61,7 @@ public class PlayerController : MonoBehaviour
         Jump();
         CheckJumpBuffer();
         CheckCoyoteTime();
+        jumpButtonPressed = false;
     }
 
     private void FixedUpdate()
@@ -95,13 +97,11 @@ public class PlayerController : MonoBehaviour
 
     private void Jump()
     {
-        if (jumpButtonPressed) // Check if the jump button was pressed
+        if ((jumpButtonPressed && coyoteTimeCounter > 0f && !inAirFromJump && !isJumping) || (jumpBufferCounter > 0f && IsGrounded()))
         {
-            if (coyoteTimeCounter > 0f || jumpBufferCounter > 0f && !isJumping && Time.time > jumpTimer)
-            {
-                rb.velocity = new Vector3(rb.velocity.x, jumpForce * jumpMultiplier, rb.velocity.z);
-            }
-            jumpButtonPressed = false;
+            rb.velocity = new Vector3(rb.velocity.x, jumpForce * jumpMultiplier, rb.velocity.z);
+            isJumping = true;
+            inAirFromJump = true;
         }
     }
 
@@ -115,12 +115,13 @@ public class PlayerController : MonoBehaviour
         else
         {
             coyoteTimeCounter = coyoteTime;
+            inAirFromJump = false;
         }
     }
 
     private void CheckJumpBuffer()
     {
-        if (isJumping) // When the player initiates a jump
+        if (jumpButtonPressed) // When the player initiates a jump
         {
             jumpBufferCounter = jumpBufferTime; // Set jump buffer counter when jump is initiated
         }
@@ -143,9 +144,9 @@ public class PlayerController : MonoBehaviour
 
         if (IsGrounded()) // When it's on the ground
         {
-            if (Mathf.Abs(currentMovementInput.x) < 0.4f) // And it's moving horizontally
+            if (currentMovementInput.magnitude < 0.4f) // And it's moving horizontally
             {
-                rb.drag = linearDrag; 
+                rb.drag = linearDrag;
             }
             else
             {
@@ -156,7 +157,7 @@ public class PlayerController : MonoBehaviour
         else // When it's on the air
         {
             rb.useGravity = true; // Enabling gravity when not grounded
-            rb.drag = linearDrag * 0.15f; 
+            rb.drag = linearDrag * 0.15f;
             if (rb.velocity.y < 0)
             {
                 rb.velocity += fallMultiplier * fallMultiplier * Time.fixedDeltaTime * Vector3.up; // Increasing fall speed
@@ -170,7 +171,7 @@ public class PlayerController : MonoBehaviour
 
     private bool IsGrounded()
     {
-        return Physics.BoxCast(transform.position, boxCastSize, Vector3.down, Quaternion.identity, groundRayLength, groundLayer);
+        return Physics.BoxCast(transform.position, boxCastSize, Vector3.down, Quaternion.identity, groundRayLength, groundLayer) && rb.velocity.y <= 0.1f;
     }
 
     #region Input
@@ -181,19 +182,20 @@ public class PlayerController : MonoBehaviour
 
     public void OnJump(InputAction.CallbackContext context)
     {
-        if (context.performed) {
+        if (context.performed)
+        {
             OnJumpPressed();
         }
-        if (context.canceled) {
+        if (context.canceled)
+        {
             OnJumpReleased();
         }
     }
 
     public void OnJumpPressed()
     {
+        if (!canJump) return;
         jumpButtonPressed = true;
-        jumpTimer = Time.time + jumpDelay;
-        isJumping = true;
     }
 
     public void OnJumpReleased()
@@ -203,17 +205,20 @@ public class PlayerController : MonoBehaviour
 
     public void OnSprint(InputAction.CallbackContext context)
     {
-        if (context.performed) {
+        if (context.performed)
+        {
             OnRunPressed(context);
         }
-        if (context.canceled) {
+        if (context.canceled)
+        {
             OnRunReleased();
         }
     }
 
     public void OnRunPressed(InputAction.CallbackContext context)
     {
-        if (IsGrounded() && canSprint) {
+        if (IsGrounded() && canSprint)
+        {
             isSprinting = context.ReadValueAsButton();
         }
     }

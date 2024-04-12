@@ -70,6 +70,12 @@ public class PlayerController : MonoBehaviour
         ModifyPhysics();
     }
 
+    private bool IsGrounded()
+    {
+        return Physics.BoxCast(transform.position, boxCastSize, Vector3.down, Quaternion.identity, groundRayLength, groundLayer) && rb.velocity.y <= 0.1f;
+    }
+
+    #region Movement
     private void HandleMovementInput()
     {
         Vector3 move = new Vector3(currentMovementInput.x, 0f, currentMovementInput.y).normalized;
@@ -77,7 +83,6 @@ public class PlayerController : MonoBehaviour
         RotatePlayer(move);
     }
 
-    #region MoveLogic
     private void MovePlayer(Vector3 moveDirection)
     {
         Vector3 velocity = moveDirection * (isSprinting ? sprintSpeed : walkSpeed);
@@ -95,6 +100,7 @@ public class PlayerController : MonoBehaviour
     }
     #endregion
 
+    #region Jump
     private void Jump()
     {
         if (IsGrounded())
@@ -147,7 +153,9 @@ public class PlayerController : MonoBehaviour
             jumpBufferCounter -= Time.deltaTime; // Decrement jump buffer counter over time
         }
     }
+    #endregion
 
+    #region Physics
     private void ModifyPhysics()
     {
         if (rb.velocity.y > 0 && isJumping) // Less or no gravity while jumping up
@@ -185,11 +193,7 @@ public class PlayerController : MonoBehaviour
             }
         }
     }
-
-    private bool IsGrounded()
-    {
-        return Physics.BoxCast(transform.position, boxCastSize, Vector3.down, Quaternion.identity, groundRayLength, groundLayer) && rb.velocity.y <= 0.1f;
-    }
+    #endregion 
 
     #region Input
     public void OnMove(InputAction.CallbackContext context)
@@ -246,6 +250,7 @@ public class PlayerController : MonoBehaviour
     }
     #endregion
 
+    #region Gizmos
     private void OnDrawGizmos()
     {
         // Set color based on whether the player is grounded or not
@@ -258,4 +263,5 @@ public class PlayerController : MonoBehaviour
         // Draw the boxcast
         Gizmos.DrawWireCube(transform.position + Vector3.down * groundRayLength, boxCastSize * 2);
     }
+    #endregion
 }

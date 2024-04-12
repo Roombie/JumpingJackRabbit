@@ -17,13 +17,14 @@ public class PlayerController : MonoBehaviour
     [Header("Jumping")]
     [SerializeField] private float jumpForce = 10f;
     [SerializeField] private float jumpMultiplier = 1f;
-    [SerializeField] private float jumpDelay = 0.25f;
-    [SerializeField] private int jumpCount = 0;
+    // [SerializeField] private float jumpDelay = 0.25f;
+    [SerializeField] private int jumpCount;
     [SerializeField] private int maxJumpCount = 2;
+    [SerializeField] private int extraJumpCount;
     [Tooltip("How long I should buffer your jump input for (seconds)")]
-    [SerializeField] private float jumpBufferTime = 0.1f;
+    [SerializeField] private float jumpBufferTime = 0.125f;
     [Tooltip("How long you have to jump after leaving a ledge (seconds)")]
-    [SerializeField] private float coyoteTime = 0.2f;
+    [SerializeField] private float coyoteTime = 0.125f;
 
     [Header("Gravity")]
     [SerializeField] private float riseGravity = 0.25f;
@@ -62,6 +63,11 @@ public class PlayerController : MonoBehaviour
         CheckJumpBuffer();
         CheckCoyoteTime();
         jumpButtonPressed = false;
+
+        if (IsGrounded()) {
+            jumpCount = 0;
+            extraJumpCount = maxJumpCount - 1;
+        }
     }
 
     private void FixedUpdate()
@@ -97,11 +103,39 @@ public class PlayerController : MonoBehaviour
 
     private void Jump()
     {
-        if ((jumpButtonPressed && coyoteTimeCounter > 0f && !inAirFromJump && !isJumping) || (jumpBufferCounter > 0f && IsGrounded()))
-        {
-            rb.velocity = new Vector3(rb.velocity.x, jumpForce * jumpMultiplier, rb.velocity.z);
+        // JUMPING
+        // If the jump button is pressed, there's still remaining coyote time, the player is not already in the air from a jump, and is not currently jumping,
+        // OR If there's a buffered jump input and the player is currently grounded.
+        if ((jumpButtonPressed && coyoteTimeCounter > 0f && !inAirFromJump && !isJumping) || (jumpBufferCounter > 0f && IsGrounded())) {
+            Debug.Log("Jump!");
+            rb.velocity = new Vector3(rb.velocity.x, jumpForce * jumpMultiplier, rb.velocity.z); // Make a jump
+            // Mark the player as jumping and in the air from a jump
             isJumping = true; 
             inAirFromJump = true;
+            jumpCount++; // Increment 1 in the jump count
+        }
+        // DOUBLE JUMPING (OR MORE)
+        // if the jump button is pressed while the player is on the air from the jump and the jump count is lower than the max amount of jumps
+        else if (jumpButtonPressed && inAirFromJump && jumpCount < maxJumpCount) {
+            Debug.Log("Double jumping!");
+            rb.velocity = new Vector3(rb.velocity.x, jumpForce * 0.75f, rb.velocity.z); // Make a lower jump
+            jumpCount++; // Increment the rest of the jumps one per one until reaching the max jump count (In this case the second jump)
+        }
+        // EXTRA JUMP IF DIDM'T JUMP BEFORE FALLING (MAXJUMPCOUNT - 1)
+        // if the player is falling from a block and hasn't consumed any extra jumps yet
+        else if (jumpButtonPressed && !IsGrounded() && !isJumping && jumpCount == 0 && extraJumpCount > 0)
+        {
+            Debug.Log("Jumping while falling!");
+            rb.velocity = new Vector3(rb.velocity.x, jumpForce * 0.75f, rb.velocity.z); // Make a jump
+            // Mark the player as jumping and in the air from a jump
+            isJumping = true;
+            inAirFromJump = true;
+            extraJumpCount--; // Consume one extra jump
+
+            if (extraJumpCount == 0 && !IsGrounded()) // To avoid extra jumping once the extra jumps are used and avoid the rest of the statements to execute
+            {
+                jumpCount = maxJumpCount;
+            }
         }
     }
 

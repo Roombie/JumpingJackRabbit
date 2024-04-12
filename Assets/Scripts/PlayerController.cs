@@ -20,7 +20,6 @@ public class PlayerController : MonoBehaviour
     // [SerializeField] private float jumpDelay = 0.25f;
     [SerializeField] private int jumpCount;
     [SerializeField] private int maxJumpCount = 2;
-    [SerializeField] private int extraJumpCount;
     [Tooltip("How long I should buffer your jump input for (seconds)")]
     [SerializeField] private float jumpBufferTime = 0.125f;
     [Tooltip("How long you have to jump after leaving a ledge (seconds)")]
@@ -63,11 +62,6 @@ public class PlayerController : MonoBehaviour
         CheckJumpBuffer();
         CheckCoyoteTime();
         jumpButtonPressed = false;
-
-        if (IsGrounded()) {
-            jumpCount = 0;
-            extraJumpCount = maxJumpCount - 1;
-        }
     }
 
     private void FixedUpdate()
@@ -121,21 +115,13 @@ public class PlayerController : MonoBehaviour
             rb.velocity = new Vector3(rb.velocity.x, jumpForce * 0.75f, rb.velocity.z); // Make a lower jump
             jumpCount++; // Increment the rest of the jumps one per one until reaching the max jump count (In this case the second jump)
         }
-        // EXTRA JUMP IF DIDM'T JUMP BEFORE FALLING (MAXJUMPCOUNT - 1)
-        // if the player is falling from a block and hasn't consumed any extra jumps yet
-        else if (jumpButtonPressed && !IsGrounded() && !isJumping && jumpCount == 0 && extraJumpCount > 0)
+        // EXTRA JUMP IF DIDN'T JUMP BEFORE FALLING (MAXJUMPCOUNT - 1)
+        // if the player is falling from a block and hasn't consumed any extra jumps yet decides to press the jump button
+        else if (jumpButtonPressed && !IsGrounded() && !inAirFromJump && jumpCount < maxJumpCount - 1)
         {
             Debug.Log("Jumping while falling!");
             rb.velocity = new Vector3(rb.velocity.x, jumpForce * 0.75f, rb.velocity.z); // Make a jump
-            // Mark the player as jumping and in the air from a jump
-            isJumping = true;
-            inAirFromJump = true;
-            extraJumpCount--; // Consume one extra jump
-
-            if (extraJumpCount == 0 && !IsGrounded()) // To avoid extra jumping once the extra jumps are used and avoid the rest of the statements to execute
-            {
-                jumpCount = maxJumpCount;
-            }
+            jumpCount++; // Increment the jump count as it's considered an extra jump
         }
     }
 

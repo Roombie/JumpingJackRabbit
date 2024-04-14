@@ -1,13 +1,15 @@
+using UnityEditor;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-[RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(Rigidbody),typeof(CapsuleCollider),typeof(AudioSource))]
 public class PlayerController : MonoBehaviour
 {
     [Header("Functional Options")]
     [SerializeField] private bool canSprint = true;
     [SerializeField] private bool canJump = true;
+    [SerializeField] private bool canCrouch = true;
 
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 5f;
@@ -18,15 +20,25 @@ public class PlayerController : MonoBehaviour
     [Header("Jumping")]
     [SerializeField] private float jumpForce = 10f;
     [SerializeField] private float jumpMultiplier = 1f;
+    [SerializeField] private float lowjumpMultiplier = 0.75f;
     [SerializeField] private int maxJumpCount = 2;
     [Tooltip("How long I should buffer your jump input for (seconds)")]
     [SerializeField] private float jumpBufferTime = 0.125f;
     [Tooltip("How long you have to jump after leaving a ledge (seconds)")]
     [SerializeField] private float coyoteTime = 0.125f;
+    // [SerializeField] private float terminalVelocity = 10f;
+    // [SerializeField] private float airAcceleration = 5f;
+    // [SerializeField] private float maxAirSpeed = 7f;
+
+    [Header("Crouch")]
+    [SerializeField] private float crouchSpeed = 2.5f;
+    // offset between our standing height and crouching height
+    [SerializeField] private float crouchColOffset = -0.5f; 
+    [SerializeField] private float crouchColHeight = 0.5f;
 
     [Header("Gravity")]
-    [SerializeField] private float riseGravity = 0.25f;
-    [SerializeField] private float fallMultiplier = 1.5f;
+    [SerializeField] private float riseGravity = 2.5f;
+    [SerializeField] private float fallMultiplier = 3.5f;
 
     [Header("Physics")]
     [SerializeField] private float linearDrag = 4f;
@@ -42,8 +54,12 @@ public class PlayerController : MonoBehaviour
     private bool isJumping; // indicates whether the player is currently in the process of jumping
     private bool jumpButtonPressed = false; // indicates whether the jump button is currently pressed
     private bool isSprinting;
+    private bool crouchPressed = false; // indicates whether the crouch button is currently pressed
+    private bool isCrouching = false; // // indicates whether the player is currently in the process of crouching
+    private float defaultStandingHeight;
 
     private Rigidbody rb;
+    private CapsuleCollider capsuleCollider;
     private AudioSource audioSource;
 
     private bool inAirFromJump = false;
@@ -53,7 +69,10 @@ public class PlayerController : MonoBehaviour
     private void Start()
     {
         rb = GetComponent<Rigidbody>();
+        capsuleCollider = GetComponent<CapsuleCollider>();
         audioSource = GetComponent<AudioSource>();
+
+        defaultStandingHeight = capsuleCollider.height;
     }
 
     private void Update()
@@ -61,6 +80,7 @@ public class PlayerController : MonoBehaviour
         Jump();
         CheckJumpBuffer();
         CheckCoyoteTime();
+        Crouch();
         jumpButtonPressed = false;
     }
 
@@ -85,7 +105,8 @@ public class PlayerController : MonoBehaviour
 
     private void MovePlayer(Vector3 moveDirection)
     {
-        Vector3 velocity = moveDirection * (isSprinting ? sprintSpeed : walkSpeed);
+        float speed = isCrouching ? crouchSpeed : (isSprinting ? sprintSpeed : walkSpeed);
+        Vector3 velocity = moveDirection * speed;
         velocity.y = rb.velocity.y;
         rb.velocity = velocity;
     }
@@ -109,21 +130,22 @@ public class PlayerController : MonoBehaviour
         }
 
         // JUMPING
-        // If the jump button is pressed, there's still remaining coyote time, the player is not already in the air from a jump, and is not currently jumping,
-        // OR If there's a buffered jump input and the player is currently grounded.
-        if ((jumpButtonPressed && coyoteTimeCounter > 0f && !inAirFromJump && !isJumping) || (jumpBufferCounter > 0f && IsGrounded())) {
+        // If the jump button is pressed, there's still remaining coyote time, the player is not already in the air from a jump, and is not currently jumping, and not crouching
+        // OR If there's a buffered jump input and the player is currently grounded and not crouching.
+        if ((jumpButtonPressed && coyoteTimeCounter > 0f && !inAirFromJump && !isJumping && !isCrouching) || (jumpBufferCounter > 0f && IsGrounded() && !isCrouching)) {
             Debug.Log("Jump!");
             rb.velocity = new Vector3(rb.velocity.x, jumpForce * jumpMultiplier, rb.velocity.z); // Make a jump
             // Mark the player as jumping and in the air from a jump
             isJumping = true; 
             inAirFromJump = true;
+ 
         }
         // DOUBLE JUMPING OR EXTRA JUMP IF FALLING BEFORE JUMPING
         // Checks whether the jump button is pressed AND the player is not grounded (in the air), AND the player has not exceeded the maximum allowed extra jumps minus one.
         else if (jumpButtonPressed && !IsGrounded() && extraJumpCount < maxJumpCount - 1)
         {
             Debug.Log("Double jumping!");
-            rb.velocity = new Vector3(rb.velocity.x, jumpForce * 0.75f, rb.velocity.z); // Make a lower jump
+            rb.velocity = new Vector3(rb.velocity.x, jumpForce * lowjumpMultiplier, rb.velocity.z); // Make a lower jump
             extraJumpCount++; // Iterate one to extraJumpCount, meaning you used one of your extra jumps
         }
     }
@@ -151,6 +173,28 @@ public class PlayerController : MonoBehaviour
         else
         {
             jumpBufferCounter -= Time.deltaTime; // Decrement jump buffer counter over time
+        }
+    }
+    #endregion
+
+    #region Crouch
+    private void Crouch()
+    {
+        if (!canCrouch) return;
+
+        if (crouchPressed)
+        {
+            Debug.Log("Crouching started!");
+            isCrouching = true;
+            capsuleCollider.height = crouchColHeight;
+            capsuleCollider.center = new Vector3(0f, crouchColOffset, 0f);
+        }
+        else
+        {
+            Debug.Log("Not crouching!");
+            isCrouching = false;
+            capsuleCollider.height = defaultStandingHeight;
+            capsuleCollider.center = Vector3.zero; // Assuming default center
         }
     }
     #endregion
@@ -248,6 +292,28 @@ public class PlayerController : MonoBehaviour
     {
         isSprinting = false;
     }
+
+    public void OnCrouch(InputAction.CallbackContext context)
+    {
+        if (context.performed)
+        {
+            OnCrouchPressed();
+        }
+        if (context.canceled)
+        {
+            OnCrouchReleased();
+        }
+    }
+
+    public void OnCrouchPressed()
+    {
+        crouchPressed = true;
+    }
+
+    public void OnCrouchReleased()
+    {
+        crouchPressed = false;
+    }
     #endregion
 
     #region Gizmos
@@ -262,6 +328,17 @@ public class PlayerController : MonoBehaviour
 
         // Draw the boxcast
         Gizmos.DrawWireCube(transform.position + Vector3.down * groundRayLength, boxCastSize * 2);
+
+        // Visualize crouchColOffset
+        Gizmos.color = Color.blue;
+        Vector3 crouchOffsetPos = transform.position + Vector3.up * crouchColOffset;
+        Gizmos.DrawSphere(crouchOffsetPos, 0.1f);
+        Gizmos.DrawLine(transform.position, crouchOffsetPos);
+
+#if UNITY_EDITOR
+        // Display label
+        Handles.Label(crouchOffsetPos, "Crouch Offset");
+#endif
     }
     #endregion
 }

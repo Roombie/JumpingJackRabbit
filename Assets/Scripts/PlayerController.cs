@@ -7,8 +7,11 @@ using UnityEngine.InputSystem;
 public class PlayerController : MonoBehaviour
 {
     [Header("Functional Options")]
+    [Tooltip("Enables or disables sprinting functionality.")]
     [SerializeField] private bool canSprint = true;
+    [Tooltip("Enables or disables jumping functionality.")]
     [SerializeField] private bool canJump = true;
+    [Tooltip("Enables or disables crouching functionality.")]
     [SerializeField] private bool canCrouch = true;
 
     [Header("Movement")]
@@ -20,7 +23,7 @@ public class PlayerController : MonoBehaviour
     [Header("Jumping")]
     [SerializeField] private float jumpForce = 10f;
     [SerializeField] private float jumpMultiplier = 1f;
-    [SerializeField] private float lowjumpMultiplier = 0.75f;
+    [SerializeField] private float lowjumpMultiplier = 1.25f;
     [SerializeField] private int maxJumpCount = 2;
     [Tooltip("How long I should buffer your jump input for (seconds)")]
     [SerializeField] private float jumpBufferTime = 0.125f;
@@ -32,15 +35,19 @@ public class PlayerController : MonoBehaviour
 
     [Header("Crouch")]
     [SerializeField] private float crouchSpeed = 2.5f;
-    // offset between our standing height and crouching height
-    [SerializeField] private float crouchColOffset = -0.5f; 
+    [Tooltip("Vertical offset between the collider's default center and crouching center.")]
+    [SerializeField] private float crouchColOffset = -0.5f;
+    [Tooltip("Height of the collider while crouching.")]
     [SerializeField] private float crouchColHeight = 0.5f;
+    [Tooltip("Distance used for detecting obstacles when transitioning from standing to crouching.")]
+    [SerializeField] private float crouchObstacleDetection = 0.25f;
 
     [Header("Gravity")]
     [SerializeField] private float riseGravity = 2.5f;
     [SerializeField] private float fallMultiplier = 3.5f;
 
     [Header("Physics")]
+    [Tooltip("Slows down the player's movement. Higher values make the player stop faster.")]
     [SerializeField] private float linearDrag = 4f;
     // [SerializeField] private float runlinearDrag = 2f;
 
@@ -138,7 +145,6 @@ public class PlayerController : MonoBehaviour
             // Mark the player as jumping and in the air from a jump
             isJumping = true; 
             inAirFromJump = true;
- 
         }
         // DOUBLE JUMPING OR EXTRA JUMP IF FALLING BEFORE JUMPING
         // Checks whether the jump button is pressed AND the player is not grounded (in the air), AND the player has not exceeded the maximum allowed extra jumps minus one.
@@ -191,6 +197,16 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
+            // Check if there's an obstruction above the player using a raycast
+            if (Physics.Raycast(transform.position, Vector3.up, defaultStandingHeight - capsuleCollider.height + crouchObstacleDetection))
+            {
+                // If there's an obstruction, remain crouched
+                Debug.Log("Obstruction detected above, remaining crouched!");
+                isCrouching = true;
+                return;
+            }
+
+            // If no obstruction, return to standing height
             Debug.Log("Not crouching!");
             isCrouching = false;
             capsuleCollider.height = defaultStandingHeight;
@@ -339,6 +355,23 @@ public class PlayerController : MonoBehaviour
         // Display label
         Handles.Label(crouchOffsetPos, "Crouch Offset");
 #endif
+
+        // Crouching Obstruction
+        // If it detects both transform and capsule collider
+        if (transform != null && capsuleCollider != null)
+        {
+            // Visualize the crouching obstruction raycast
+            if (Physics.Raycast(transform.position, Vector3.up, out RaycastHit hit, defaultStandingHeight - capsuleCollider.height + crouchObstacleDetection))
+            {
+                Gizmos.color = Color.red; // Set color to red if there's an obstruction
+                Gizmos.DrawLine(transform.position, hit.point); // Draw a line from player to the hit point
+            }
+            else
+            {
+                Gizmos.color = Color.green; // Set color to green if there's no obstruction
+                Gizmos.DrawLine(transform.position, transform.position + Vector3.up * (defaultStandingHeight - capsuleCollider.height + crouchObstacleDetection)); // Draw a line from player upwards
+            }
+        }
     }
     #endregion
 }

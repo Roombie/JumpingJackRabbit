@@ -13,6 +13,10 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private bool canJump = true;
     [Tooltip("Enables or disables crouching functionality.")]
     [SerializeField] private bool canCrouch = true;
+    [Tooltip("Enables or disables wall jumping functionality.")]
+    [SerializeField] private bool canWallJump = true;
+    [Tooltip("Enables or disables wall sliding functionality.")]
+    [SerializeField] private bool canWallSliding = true;
 
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 5f;
@@ -42,6 +46,13 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Distance used for detecting obstacles when transitioning from standing to crouching.")]
     [SerializeField] private float crouchObstacleDetection = 0.25f;
 
+    [Header("Wall Jump")]
+    [SerializeField] private float wallJumpForce = 8f;
+    [SerializeField] private float wallJumpDetectionRange = 0.6f;
+
+    [Header("Wall Sliding")]
+    [SerializeField] private float wallSlidingSpeed = 2f;
+
     [Header("Gravity")]
     [SerializeField] private float riseGravity = 2.5f;
     [SerializeField] private float fallMultiplier = 3.5f;
@@ -58,12 +69,13 @@ public class PlayerController : MonoBehaviour
 
     private Vector2 currentMovementInput;
     private int extraJumpCount;
-    private bool isJumping; // indicates whether the player is currently in the process of jumping
-    private bool jumpButtonPressed = false; // indicates whether the jump button is currently pressed
-    private bool isSprinting;
-    private bool crouchPressed = false; // indicates whether the crouch button is currently pressed
-    private bool isCrouching = false; // // indicates whether the player is currently in the process of crouching
+    private bool isJumping; // indicates whether the player is CURRENTLY in the PROCESS of JUMPING
+    private bool jumpButtonPressed = false; // indicates whether the JUMP button is CURRENTLY PRESSED
+    private bool isSprinting; // indicates whether the player is CURRENTLY in the PROCESS of SPRINTING
+    private bool crouchPressed = false; // indicates whether the CROUCH button is CURRENTLY PRESSED
+    private bool isCrouching = false; // indicates whether the player is CURRENTLY in the process of CROUCHING
     private float defaultStandingHeight;
+    private bool isWallSliding;
 
     private Rigidbody rb;
     private CapsuleCollider capsuleCollider;
@@ -84,6 +96,8 @@ public class PlayerController : MonoBehaviour
 
     private void Update()
     {
+        WallSlide();
+        WallJump();
         Jump();
         CheckJumpBuffer();
         CheckCoyoteTime();
@@ -97,10 +111,27 @@ public class PlayerController : MonoBehaviour
         ModifyPhysics();
     }
 
+    #region Collision Detection
     private bool IsGrounded()
     {
         return Physics.BoxCast(transform.position, boxCastSize, Vector3.down, Quaternion.identity, groundRayLength, groundLayer) && rb.velocity.y <= 0.1f;
     }
+
+    private bool IsTouchingWall()
+    {
+        // Calculate the forward direction vector with y-component set to 0
+        Vector3 forwardDirection = new Vector3(transform.forward.x, transform.forward.y, transform.forward.z).normalized;
+
+        // Cast a ray in the direction the player is facing to check for wall contact
+        if (Physics.Raycast(transform.position, forwardDirection, out RaycastHit hit, wallJumpDetectionRange, groundLayer))
+        {
+            Debug.Log("Wall detected");
+            // Check if the hit surface is a wall
+            return hit.normal.y < 0.1f; // Adjust this threshold as needed
+        }
+        return false;
+    }
+    #endregion
 
     #region Movement
     private void HandleMovementInput()
@@ -212,6 +243,26 @@ public class PlayerController : MonoBehaviour
             capsuleCollider.height = defaultStandingHeight;
             capsuleCollider.center = Vector3.zero; // Assuming default center
         }
+    }
+    #endregion
+
+    #region Wall Jump and Wall Sliding
+    private void WallJump()
+    {
+        if (!canWallJump) return;
+    }
+
+    private void WallSlide()
+    {
+        if (!canWallSliding) return;
+
+        if (IsTouchingWall() && !IsGrounded() && currentMovementInput.y != 0) {
+            Debug.Log("Is wall sliding");
+            isWallSliding = true;
+            rb.velocity = new Vector3(rb.velocity.x, Mathf.Clamp(rb.velocity.y, -wallSlidingSpeed, float.MaxValue));
+        } else {
+            isWallSliding = false;
+        } 
     }
     #endregion
 
@@ -346,7 +397,7 @@ public class PlayerController : MonoBehaviour
         Gizmos.DrawWireCube(transform.position + Vector3.down * groundRayLength, boxCastSize * 2);
 
         // Visualize crouchColOffset
-        Gizmos.color = Color.blue;
+        Gizmos.color = new Color(0, 0, 1, 0.5f);
         Vector3 crouchOffsetPos = transform.position + Vector3.up * crouchColOffset;
         Gizmos.DrawSphere(crouchOffsetPos, 0.1f);
         Gizmos.DrawLine(transform.position, crouchOffsetPos);
@@ -372,6 +423,17 @@ public class PlayerController : MonoBehaviour
                 Gizmos.DrawLine(transform.position, transform.position + Vector3.up * (defaultStandingHeight - capsuleCollider.height + crouchObstacleDetection)); // Draw a line from player upwards
             }
         }
+
+        // Visualize touching wall
+        Gizmos.color = new Color(0, 1, 1, 0.5f);
+        Vector3 endPosition = transform.position + transform.forward * wallJumpDetectionRange;
+        Gizmos.DrawLine(transform.position, endPosition); // Draw a line in the direction the player is facing
+
+        // Draw a sphere at the end of the line to represent the detection point
+        Gizmos.DrawSphere(endPosition, 0.1f);
+
+        // Display label for wall detection
+        Handles.Label(endPosition, "Wall Detection");
     }
     #endregion
 }

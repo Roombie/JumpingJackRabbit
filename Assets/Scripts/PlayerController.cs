@@ -251,24 +251,10 @@ public class PlayerController : MonoBehaviour
     {
         if (!canWallJump) return;
 
-        if (isWallSliding && jumpButtonPressed)
-        {
-            Debug.Log("Wall Jump!");
-
-            // Calculate the jump direction away from the wall
-            Vector3 jumpDirection = transform.up + -transform.forward;
-
-            // Normalize the jump direction to ensure consistent jump force
-            jumpDirection.Normalize();
-
-            // Calculate the jump velocity based on the jump direction and wall jump force
-            Vector3 jumpVelocity = jumpDirection * wallJumpForce;
-
-            // Apply the jump velocity to the player's rigidbody velocity
-            rb.velocity = jumpVelocity;
-
-            // Set jumping to true to prevent double jumps or consecutive wall jumps
-            isJumping = true;
+        if (IsTouchingWall() && !IsGrounded() && jumpButtonPressed) {
+            isWallJumping = true;
+        } else {
+            isWallJumping = false;
         }
     }
 
@@ -276,7 +262,7 @@ public class PlayerController : MonoBehaviour
     {
         if (!canWallSliding) return;
 
-        if (IsTouchingWall() && !IsGrounded()) {
+        if (IsTouchingWall() && !IsGrounded() && currentMovementInput.y != 0) {
             Debug.Log("Is wall sliding");
             isWallSliding = true;
             // Clamp the vertical velocity to control the sliding speed

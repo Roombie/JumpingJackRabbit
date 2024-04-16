@@ -46,12 +46,11 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Distance used for detecting obstacles when transitioning from standing to crouching.")]
     [SerializeField] private float crouchObstacleDetection = 0.25f;
 
-    [Header("Wall Jump")]
-    [SerializeField] private float wallJumpForce = 8f;
-    [SerializeField] private float wallJumpDetectionRange = 0.6f;
-
     [Header("Wall Sliding")]
     [SerializeField] private float wallSlidingSpeed = 2f;
+
+    [Header("Wall Sliding")]
+    [SerializeField] private float wallJumpForce = 10f;
 
     [Header("Gravity")]
     [SerializeField] private float riseGravity = 2.5f;
@@ -67,6 +66,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float groundRayLength = 0.1f;
     [SerializeField] private Vector3 boxCastSize = new(0.5f, 0.05f, 0.5f);
 
+    [Header("Wall Check")]
+    [SerializeField] private float wallDetectionRange = 0.6f;
+
     private Vector2 currentMovementInput;
     private int extraJumpCount;
     private bool isJumping; // indicates whether the player is CURRENTLY in the PROCESS of JUMPING
@@ -76,6 +78,7 @@ public class PlayerController : MonoBehaviour
     private bool isCrouching = false; // indicates whether the player is CURRENTLY in the process of CROUCHING
     private float defaultStandingHeight;
     private bool isWallSliding;
+    private bool isWallJumping;
 
     private Rigidbody rb;
     private CapsuleCollider capsuleCollider;
@@ -119,11 +122,8 @@ public class PlayerController : MonoBehaviour
 
     private bool IsTouchingWall()
     {
-        // Calculate the forward direction vector with y-component set to 0
-        Vector3 forwardDirection = new Vector3(transform.forward.x, transform.forward.y, transform.forward.z).normalized;
-
         // Cast a ray in the direction the player is facing to check for wall contact
-        if (Physics.Raycast(transform.position, forwardDirection, out RaycastHit hit, wallJumpDetectionRange, groundLayer))
+        if (Physics.Raycast(transform.position, transform.forward.normalized, out RaycastHit hit, wallDetectionRange, groundLayer))
         {
             Debug.Log("Wall detected");
             // Check if the hit surface is a wall
@@ -250,19 +250,42 @@ public class PlayerController : MonoBehaviour
     private void WallJump()
     {
         if (!canWallJump) return;
+
+        if (isWallSliding && jumpButtonPressed)
+        {
+            Debug.Log("Wall Jump!");
+
+            // Calculate the jump direction away from the wall
+            Vector3 jumpDirection = transform.up + -transform.forward;
+
+            // Normalize the jump direction to ensure consistent jump force
+            jumpDirection.Normalize();
+
+            // Calculate the jump velocity based on the jump direction and wall jump force
+            Vector3 jumpVelocity = jumpDirection * wallJumpForce;
+
+            // Apply the jump velocity to the player's rigidbody velocity
+            rb.velocity = jumpVelocity;
+
+            // Set jumping to true to prevent double jumps or consecutive wall jumps
+            isJumping = true;
+        }
     }
 
     private void WallSlide()
     {
         if (!canWallSliding) return;
 
-        if (IsTouchingWall() && !IsGrounded() && currentMovementInput.y != 0) {
+        if (IsTouchingWall() && !IsGrounded()) {
             Debug.Log("Is wall sliding");
             isWallSliding = true;
+            // Clamp the vertical velocity to control the sliding speed
             rb.velocity = new Vector3(rb.velocity.x, Mathf.Clamp(rb.velocity.y, -wallSlidingSpeed, float.MaxValue));
+            // Reset the horizontal velocity to zero to prevent movement away from the wall
+            rb.velocity = new Vector3(0f, rb.velocity.y, rb.velocity.z);
         } else {
             isWallSliding = false;
-        } 
+        }
     }
     #endregion
 
@@ -426,7 +449,7 @@ public class PlayerController : MonoBehaviour
 
         // Visualize touching wall
         Gizmos.color = new Color(0, 1, 1, 0.5f);
-        Vector3 endPosition = transform.position + transform.forward * wallJumpDetectionRange;
+        Vector3 endPosition = transform.position + transform.forward * wallDetectionRange;
         Gizmos.DrawLine(transform.position, endPosition); // Draw a line in the direction the player is facing
 
         // Draw a sphere at the end of the line to represent the detection point

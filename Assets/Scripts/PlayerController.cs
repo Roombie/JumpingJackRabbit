@@ -13,8 +13,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private bool canJump = true;
     [Tooltip("Enables or disables crouching functionality.")]
     [SerializeField] private bool canCrouch = true;
-    [Tooltip("Enables or disables wall jumping functionality.")]
-    [SerializeField] private bool canWallJump = true;
     [Tooltip("Enables or disables wall sliding functionality.")]
     [SerializeField] private bool canWallSliding = true;
 
@@ -27,6 +25,7 @@ public class PlayerController : MonoBehaviour
     [Header("Jumping")]
     [SerializeField] private float jumpForce = 10f;
     [SerializeField] private float jumpMultiplier = 1f;
+    [Tooltip("This is for the extra jump.")]
     [SerializeField] private float lowjumpMultiplier = 1.25f;
     [SerializeField] private int maxJumpCount = 2;
     [Tooltip("How long I should buffer your jump input for (seconds)")]
@@ -49,9 +48,6 @@ public class PlayerController : MonoBehaviour
     [Header("Wall Sliding")]
     [SerializeField] private float wallSlidingSpeed = 2f;
 
-    [Header("Wall Sliding")]
-    [SerializeField] private float wallJumpForce = 10f;
-
     [Header("Gravity")]
     [SerializeField] private float riseGravity = 2.5f;
     [SerializeField] private float fallMultiplier = 3.5f;
@@ -68,7 +64,9 @@ public class PlayerController : MonoBehaviour
 
     [Header("Wall Check")]
     [SerializeField] private float wallDetectionRange = 0.6f;
+    [SerializeField] private Vector3 wallDetectionBoxSize = new (0.5f, 2f, 0.5f);
 
+    private Vector3 moveDirection;
     private Vector2 currentMovementInput;
     private int extraJumpCount;
     private bool isJumping; // indicates whether the player is CURRENTLY in the PROCESS of JUMPING
@@ -78,7 +76,6 @@ public class PlayerController : MonoBehaviour
     private bool isCrouching = false; // indicates whether the player is CURRENTLY in the process of CROUCHING
     private float defaultStandingHeight;
     private bool isWallSliding;
-    private bool isWallJumping;
 
     private Rigidbody rb;
     private CapsuleCollider capsuleCollider;
@@ -100,7 +97,6 @@ public class PlayerController : MonoBehaviour
     private void Update()
     {
         WallSlide();
-        WallJump();
         Jump();
         CheckJumpBuffer();
         CheckCoyoteTime();
@@ -117,13 +113,15 @@ public class PlayerController : MonoBehaviour
     #region Collision Detection
     private bool IsGrounded()
     {
-        return Physics.BoxCast(transform.position, boxCastSize, Vector3.down, Quaternion.identity, groundRayLength, groundLayer) && rb.velocity.y <= 0.1f;
+        return Physics.BoxCast(transform.position, boxCastSize, Vector3.down, Quaternion.identity, groundRayLength, groundLayer) /*&& rb.velocity.y <= 0.1f*/;
     }
 
     private bool IsTouchingWall()
     {
-        // Cast a ray in the direction the player is facing to check for wall contact
-        if (Physics.Raycast(transform.position, transform.forward.normalized, out RaycastHit hit, wallDetectionRange, groundLayer))
+        // Calculate the box cast origin based on the player's position and forward direction
+        Vector3 boxcastOrigin = transform.position;
+        // Perform the box cast to check for wall contact
+        if (Physics.BoxCast(boxcastOrigin, wallDetectionBoxSize / 2, transform.forward, out RaycastHit hit, Quaternion.identity, wallDetectionRange, groundLayer))
         {
             Debug.Log("Wall detected");
             // Check if the hit surface is a wall
@@ -136,9 +134,9 @@ public class PlayerController : MonoBehaviour
     #region Movement
     private void HandleMovementInput()
     {
-        Vector3 move = new Vector3(currentMovementInput.x, 0f, currentMovementInput.y).normalized;
-        MovePlayer(move);
-        RotatePlayer(move);
+        moveDirection = new Vector3(currentMovementInput.x, 0f, currentMovementInput.y).normalized;
+        MovePlayer(moveDirection);
+        RotatePlayer(moveDirection);
     }
 
     private void MovePlayer(Vector3 moveDirection)
@@ -246,29 +244,16 @@ public class PlayerController : MonoBehaviour
     }
     #endregion
 
-    #region Wall Jump and Wall Sliding
-    private void WallJump()
-    {
-        if (!canWallJump) return;
-
-        if (IsTouchingWall() && !IsGrounded() && jumpButtonPressed) {
-            isWallJumping = true;
-        } else {
-            isWallJumping = false;
-        }
-    }
-
+    #region Wall Sliding
     private void WallSlide()
     {
         if (!canWallSliding) return;
 
-        if (IsTouchingWall() && !IsGrounded() && currentMovementInput.y != 0) {
+        if (IsTouchingWall() && !IsGrounded() && currentMovementInput.magnitude > 0) {
             Debug.Log("Is wall sliding");
             isWallSliding = true;
             // Clamp the vertical velocity to control the sliding speed
-            rb.velocity = new Vector3(rb.velocity.x, Mathf.Clamp(rb.velocity.y, -wallSlidingSpeed, float.MaxValue));
-            // Reset the horizontal velocity to zero to prevent movement away from the wall
-            rb.velocity = new Vector3(0f, rb.velocity.y, rb.velocity.z);
+            rb.velocity = new Vector3(rb.velocity.x, Mathf.Clamp(rb.velocity.y, -wallSlidingSpeed, float.MaxValue), rb.velocity.z);
         } else {
             isWallSliding = false;
         }
@@ -295,7 +280,7 @@ public class PlayerController : MonoBehaviour
             }
             else
             {
-                rb.drag = 0f; 
+                rb.drag = 0f;
             }
             rb.useGravity = false;
         }
@@ -410,11 +395,9 @@ public class PlayerController : MonoBehaviour
         Vector3 crouchOffsetPos = transform.position + Vector3.up * crouchColOffset;
         Gizmos.DrawSphere(crouchOffsetPos, 0.1f);
         Gizmos.DrawLine(transform.position, crouchOffsetPos);
-
-#if UNITY_EDITOR
         // Display label
         Handles.Label(crouchOffsetPos, "Crouch Offset");
-#endif
+
 
         // Crouching Obstruction
         // If it detects both transform and capsule collider
@@ -433,16 +416,29 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        // Visualize touching wall
-        Gizmos.color = new Color(0, 1, 1, 0.5f);
-        Vector3 endPosition = transform.position + transform.forward * wallDetectionRange;
-        Gizmos.DrawLine(transform.position, endPosition); // Draw a line in the direction the player is facing
+        // Wall detection
+        // Set color based on whether the player is touching a wall or not
+        if (IsTouchingWall())
+        {
+            Gizmos.color = Color.green; // Touching a wall
+        }
+        else
+        {
+            Gizmos.color = Color.red; // Not touching a wall
+        }
 
-        // Draw a sphere at the end of the line to represent the detection point
-        Gizmos.DrawSphere(endPosition, 0.1f);
+        // Calculate the box cast origin based on the player's position
+        Vector3 boxcastOrigin = transform.position;
+        // Draw a wire cube representing the BoxCast volume
+        Gizmos.DrawWireCube(boxcastOrigin + transform.forward * wallDetectionRange / 2, wallDetectionBoxSize);
+        // Display label
+        Handles.Label(boxcastOrigin + transform.forward * wallDetectionRange / 2, "Wall Detection");
 
-        // Display label for wall detection
-        Handles.Label(endPosition, "Wall Detection");
+        // Visualize the slope detection raycast
+        Gizmos.color = Color.cyan;
+        Vector3 slopeOffsetPos = transform.position + Vector3.down * (groundRayLength + 0.1f);
+        Gizmos.DrawSphere(slopeOffsetPos, 0.1f);
+        Handles.Label(slopeOffsetPos, "Slope Detection");
     }
     #endregion
 }

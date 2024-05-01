@@ -15,6 +15,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private bool canCrouch = true;
     [Tooltip("Enables or disables wall sliding functionality.")]
     [SerializeField] private bool canWallSliding = true;
+    [Tooltip("Enables or disables wall jump functionality.")]
+    [SerializeField] private bool canWallJump = true;
 
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 5f;
@@ -48,6 +50,10 @@ public class PlayerController : MonoBehaviour
     [Header("Wall Sliding")]
     [SerializeField] private float wallSlidingSpeed = 2f;
 
+    [Header("Wall Jump")]
+    [SerializeField] private float wallJumpForce = 10f;
+    private Vector3 wallNormal;
+
     [Header("Gravity")]
     [SerializeField] private float riseGravity = 2.5f;
     [SerializeField] private float fallMultiplier = 3.5f;
@@ -66,7 +72,6 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float wallDetectionRange = 0.6f;
     [SerializeField] private Vector3 wallDetectionBoxSize = new (0.5f, 2f, 0.5f);
 
-    private Vector3 moveDirection;
     private Vector2 currentMovementInput;
     private int extraJumpCount;
     private bool isJumping; // indicates whether the player is CURRENTLY in the PROCESS of JUMPING
@@ -76,6 +81,8 @@ public class PlayerController : MonoBehaviour
     private bool isCrouching = false; // indicates whether the player is CURRENTLY in the process of CROUCHING
     private float defaultStandingHeight;
     private bool isWallSliding;
+    // private bool isClimbing;
+    // private bool onLadder;
 
     private Rigidbody rb;
     private CapsuleCollider capsuleCollider;
@@ -97,6 +104,7 @@ public class PlayerController : MonoBehaviour
     private void Update()
     {
         WallSlide();
+        WallJump();
         Jump();
         CheckJumpBuffer();
         CheckCoyoteTime();
@@ -134,9 +142,9 @@ public class PlayerController : MonoBehaviour
     #region Movement
     private void HandleMovementInput()
     {
-        moveDirection = new Vector3(currentMovementInput.x, 0f, currentMovementInput.y).normalized;
-        MovePlayer(moveDirection);
-        RotatePlayer(moveDirection);
+        Vector3 move = new Vector3(currentMovementInput.x, 0f, currentMovementInput.y).normalized;
+        MovePlayer(move);
+        RotatePlayer(move);
     }
 
     private void MovePlayer(Vector3 moveDirection)
@@ -176,8 +184,8 @@ public class PlayerController : MonoBehaviour
             inAirFromJump = true;
         }
         // DOUBLE JUMPING OR EXTRA JUMP IF FALLING BEFORE JUMPING
-        // Checks whether the jump button is pressed AND the player is not grounded (in the air), AND the player has not exceeded the maximum allowed extra jumps minus one.
-        else if (jumpButtonPressed && !IsGrounded() && extraJumpCount < maxJumpCount - 1)
+        // Checks whether the jump button is pressed AND the player is not grounded (in the air), AND the player has not exceeded the maximum allowed extra jumps minus one AND you're not wall sliding
+        else if (jumpButtonPressed && !IsGrounded() && extraJumpCount < maxJumpCount - 1 && !isWallSliding)
         {
             Debug.Log("Double jumping!");
             rb.velocity = new Vector3(rb.velocity.x, jumpForce * lowjumpMultiplier, rb.velocity.z); // Make a lower jump
@@ -260,9 +268,31 @@ public class PlayerController : MonoBehaviour
     }
     #endregion
 
+    #region Wall Jump
+    private void WallJump()
+    {
+        if (!canWallJump) return;
+
+        if (isWallSliding && jumpButtonPressed)
+        {
+            // do cool wall jump
+            Debug.Log("Wall jump executed");
+            isWallSliding = false;
+        }
+    }
+    #endregion
+
+    #region Climbing
+    private void Climbing()
+    {
+
+    }
+    #endregion
+
     #region Physics
     private void ModifyPhysics()
     {
+        // GRAVITY RELATED
         if (rb.velocity.y > 0 && isJumping) // Less or no gravity while jumping up
         {
             rb.velocity += riseGravity * Time.fixedDeltaTime * Vector3.up;
@@ -389,6 +419,7 @@ public class PlayerController : MonoBehaviour
 
         // Draw the boxcast
         Gizmos.DrawWireCube(transform.position + Vector3.down * groundRayLength, boxCastSize * 2);
+        Handles.Label(transform.position + Vector3.down * groundRayLength, "Ground Check");
 
         // Visualize crouchColOffset
         Gizmos.color = new Color(0, 0, 1, 0.5f);
@@ -433,12 +464,6 @@ public class PlayerController : MonoBehaviour
         Gizmos.DrawWireCube(boxcastOrigin + transform.forward * wallDetectionRange / 2, wallDetectionBoxSize);
         // Display label
         Handles.Label(boxcastOrigin + transform.forward * wallDetectionRange / 2, "Wall Detection");
-
-        // Visualize the slope detection raycast
-        Gizmos.color = Color.cyan;
-        Vector3 slopeOffsetPos = transform.position + Vector3.down * (groundRayLength + 0.1f);
-        Gizmos.DrawSphere(slopeOffsetPos, 0.1f);
-        Handles.Label(slopeOffsetPos, "Slope Detection");
     }
     #endregion
 }

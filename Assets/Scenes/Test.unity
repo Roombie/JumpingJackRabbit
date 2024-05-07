@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 705507994}
-  m_IndirectSpecularColor: {r: 0.1727683, g: 0.21589184, b: 0.29782492, a: 1}
+  m_IndirectSpecularColor: {r: 0.17276844, g: 0.21589246, b: 0.2978263, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -285,7 +285,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 148617702}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.14315523, y: 0.000000016383664, z: -0.000000002369816, w: 0.98970026}
+  m_LocalRotation: {x: 0.14315522, y: -0.000000020438824, z: 0.0000000029563743, w: 0.98970026}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -2528,7 +2528,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.12005994, y: 0.000000017081922, z: -0.000000002065797, w: 0.9927667}
+  m_LocalRotation: {x: 0.12005994, y: -0.000000017081922, z: 0.000000002065797, w: 0.9927667}
   m_LocalPosition: {x: 14.669999, y: -1.1031313, z: -13.74}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -3320,8 +3320,10 @@ MonoBehaviour:
   canCrouch: 1
   canWallSliding: 1
   canWallJump: 1
-  walkSpeed: 5
-  sprintSpeed: 7.5
+  walkSpeed: 20
+  sprintSpeed: 30
+  maxWalkVelocity: 5
+  maxSprintVelocity: 7.5
   rotationSpeed: 15
   jumpForce: 8
   jumpMultiplier: 1
@@ -3335,9 +3337,10 @@ MonoBehaviour:
   crouchObstacleDetection: 0.25
   wallSlidingSpeed: 2
   wallJumpForce: 10
+  wallJumpAwayForce: 100
   riseGravity: 2.5
   fallMultiplier: 3.5
-  linearDrag: 3
+  linearDrag: 10
   groundLayer:
     serializedVersion: 2
     m_Bits: 73
@@ -3592,7 +3595,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1176737615}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.120059915, y: 0.000000017081922, z: -0.0000000020657966, w: 0.9927667}
+  m_LocalRotation: {x: 0.120059915, y: -0.000000017081922, z: 0.0000000020657966, w: 0.9927667}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0

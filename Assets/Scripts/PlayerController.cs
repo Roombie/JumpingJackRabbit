@@ -20,8 +20,11 @@ public class PlayerController : MonoBehaviour
 
     [Header("Movement")]
     [SerializeField] private float walkSpeed = 5f;
-    [SerializeField] private float sprintSpeed = 10f;
+    [SerializeField] private float sprintSpeed = 7f;
     // [SerializeField] private float slowDownForce = 5f;
+    [SerializeField] private float maxWalkVelocity = 5f;
+    [SerializeField] private float maxSprintVelocity = 10f;
+
     [SerializeField] private float rotationSpeed = 15f;
 
     [Header("Jumping")]
@@ -52,6 +55,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Wall Jump")]
     [SerializeField] private float wallJumpForce = 10f;
+    [SerializeField] private float wallJumpAwayForce = 30f;
     private Vector3 wallNormal;
 
     [Header("Gravity")]
@@ -131,7 +135,7 @@ public class PlayerController : MonoBehaviour
         // Perform the box cast to check for wall contact
         if (Physics.BoxCast(boxcastOrigin, wallDetectionBoxSize / 2, transform.forward, out RaycastHit hit, Quaternion.identity, wallDetectionRange, groundLayer))
         {
-            Debug.Log("Wall detected");
+            wallNormal = hit.normal;
             // Check if the hit surface is a wall
             return hit.normal.y < 0.1f; // Adjust this threshold as needed
         }
@@ -150,9 +154,15 @@ public class PlayerController : MonoBehaviour
     private void MovePlayer(Vector3 moveDirection)
     {
         float speed = isCrouching ? crouchSpeed : (isSprinting ? sprintSpeed : walkSpeed);
-        Vector3 velocity = moveDirection * speed;
-        velocity.y = rb.velocity.y;
-        rb.velocity = velocity;
+        rb.AddForce(moveDirection * speed);
+        float maxVelocity = isSprinting ? maxSprintVelocity : maxWalkVelocity;
+        float currentHorizVelocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z).magnitude;
+        if (currentHorizVelocity > maxVelocity)
+        {
+            float yVelocity = rb.velocity.y;
+            Vector3 newVelocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z).normalized * maxVelocity;
+            rb.velocity = new Vector3(newVelocity.x, yVelocity, newVelocity.z);
+        }
     }
 
     private void RotatePlayer(Vector3 moveDirection)
@@ -276,8 +286,10 @@ public class PlayerController : MonoBehaviour
         if (isWallSliding && jumpButtonPressed)
         {
             // do cool wall jump
-            Debug.Log("Wall jump executed");
             isWallSliding = false;
+            
+            // Add backwards and upwards force
+            rb.velocity = new Vector3(wallNormal.x * wallJumpAwayForce, wallJumpForce, wallNormal.z * wallJumpAwayForce);
         }
     }
     #endregion

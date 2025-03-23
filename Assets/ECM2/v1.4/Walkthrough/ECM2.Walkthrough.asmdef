@@ -1,0 +1,17 @@
+{
+    "name": "ECM2.Walkthrough",
+    "rootNamespace": "",
+    "references": [
+        "GUID:659d7efc2734dfe4babc4144eff2294d",
+        "GUID:4307f53044263cf4b835bd812fc161a4"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

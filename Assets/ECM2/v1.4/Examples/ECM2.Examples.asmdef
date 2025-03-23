@@ -1,0 +1,16 @@
+{
+    "name": "ECM2.Examples",
+    "rootNamespace": "",
+    "references": [
+        "GUID:659d7efc2734dfe4babc4144eff2294d"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

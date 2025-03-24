@@ -31,7 +31,12 @@ public class JackRabbitController : MonoBehaviour
     public float coyoteTime = 0.2f;
     private float coyoteTimeCounter = 0f;
 
+    [Header("Rotation")]
     [SerializeField] private float rotationSpeed = 10f;
+    [SerializeField] private Transform capsuleTransform;
+
+    [Header("Camera Reference")]
+    [SerializeField] private Transform cameraTransform;
 
     private CharacterController characterController;
     private PlayerInput playerInput;
@@ -59,10 +64,18 @@ public class JackRabbitController : MonoBehaviour
     {
         characterController = GetComponent<CharacterController>();
         playerInput = GetComponent<PlayerInput>();
+
+        if (cameraTransform == null)
+        {
+            cameraTransform = Camera.main.transform;
+        }
     }
 
     private void Start()
     {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
         stateMachine = new StateMachine();
         stateMachine.ChangeState(new IdleState(stateMachine, this));
     }
@@ -99,6 +112,7 @@ public class JackRabbitController : MonoBehaviour
         characterController.Move(velocity * Time.fixedDeltaTime);
     }
 
+    #region Input System
     public void OnMove(InputAction.CallbackContext context)
     {
         moveInput = context.ReadValue<Vector2>();
@@ -123,6 +137,37 @@ public class JackRabbitController : MonoBehaviour
     {
         sprintInput = context.ReadValueAsButton();
     }
+    #endregion
+
+    #region Jump Logic
+    public void PerformJump()
+    {
+        float appliedJumpForce = jumpForce;
+
+        // Reduce jump force for extra jumps
+        if (!IsGrounded() && !IsInCoyoteTime())
+        {
+            int jumpsUsed = maxJumps - jumpsRemaining;
+            if (jumpsUsed >= 1)
+                appliedJumpForce *= 0.7f;
+        }
+
+        gravityVelocity.y = appliedJumpForce;
+        velocity.y = gravityVelocity.y;
+
+        Debug.Log($"Jump performed: appliedJumpForce={appliedJumpForce}, jumpsRemaining={jumpsRemaining}");
+
+        if (IsGrounded() || IsInCoyoteTime())
+        {
+            jumpsRemaining = maxJumps - 1;
+        }
+        else
+        {
+            jumpsRemaining--;
+        }
+
+        coyoteTimeCounter = 0f;
+    }
 
     public void ConsumeJumpInput()
     {
@@ -145,31 +190,66 @@ public class JackRabbitController : MonoBehaviour
         jumpBufferCounter = -1f;
         jumpInput = false;
     }
+    #endregion
 
+    #region Movement & Rotation
+    /// <summary>
+    /// Gets movement direction relative to camera orientation.
+    /// </summary>
     public Vector3 GetMoveDirection()
     {
-        Vector3 moveDir = new(moveInput.x, 0f, moveInput.y);
+        if (cameraTransform == null)
+        {
+            Debug.LogWarning("Camera Transform not assigned!");
+            return Vector3.zero;
+        }
+
+        Vector3 forward = cameraTransform.forward;
+        Vector3 right = cameraTransform.right;
+
+        forward.y = 0f;
+        right.y = 0f;
+
+        forward.Normalize();
+        right.Normalize();
+
+        Vector3 moveDir = forward * moveInput.y + right * moveInput.x;
+
         return moveDir.normalized;
     }
 
+    /// <summary>
+    /// Rotates the player towards movement direction.
+    /// </summary>
     public void RotateTowardsMoveDirection()
     {
         Vector3 moveDir = GetMoveDirection();
 
-        // Do nothing if there is no input
-        if (moveDir.sqrMagnitude < 0.01f)
+        if (moveDir.magnitude < 0.1f)
             return;
 
-        // Rotate the entire player towards the movement direction
-        Quaternion targetRotation = Quaternion.LookRotation(moveDir, Vector3.up);
-        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
+        moveDir.y = 0f;
+
+        Quaternion targetRotation = Quaternion.LookRotation(moveDir);
+
+        capsuleTransform.rotation = Quaternion.RotateTowards(
+            capsuleTransform.rotation,
+            targetRotation,
+            rotationSpeed * Time.deltaTime
+        );
     }
 
+    /// <summary>
+    /// Updates horizontal velocity based on movement.
+    /// </summary>
     public void SetHorizontalVelocity(Vector3 horizontal)
     {
         velocity = new Vector3(horizontal.x, velocity.y, horizontal.z);
     }
 
+    /// <summary>
+    /// Applies gravity to vertical velocity.
+    /// </summary>
     public void ApplyGravity()
     {
         if (isGrounded)
@@ -199,26 +279,9 @@ public class JackRabbitController : MonoBehaviour
 
         velocity.y = gravityVelocity.y;
     }
+    #endregion
 
-    public void PerformJump()
-    {
-        gravityVelocity.y = jumpForce;
-        velocity.y = gravityVelocity.y;
-
-        Debug.Log($"Jump performed: jumpForce={jumpForce}, gravityVelocity.y={gravityVelocity.y}");
-
-        if (IsGrounded() || IsInCoyoteTime())
-        {
-            jumpsRemaining = maxJumps - 1;
-        }
-        else
-        {
-            jumpsRemaining--;
-        }
-
-        coyoteTimeCounter = 0f;
-    }
-
+    #region Ground Check
     private void GroundCheck()
     {
         isGrounded = Physics.CheckSphere(groundCheckPoint.position, groundCheckRadius, groundLayer);
@@ -239,7 +302,9 @@ public class JackRabbitController : MonoBehaviour
     {
         return isGrounded;
     }
+    #endregion
 
+    #region Debug
     public string GetCurrentStateName()
     {
         return stateMachine.GetCurrentStateName();
@@ -257,4 +322,5 @@ public class JackRabbitController : MonoBehaviour
             Gizmos.DrawWireSphere(groundCheckPoint.position, groundCheckRadius);
         }
     }
+    #endregion
 }

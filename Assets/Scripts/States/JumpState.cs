@@ -2,15 +2,12 @@ using UnityEngine;
 
 public class JumpState : MovementState
 {
-    private bool hasStartedFalling = false;
-
     public JumpState(StateMachine stateMachine, JackRabbitController player) : base(stateMachine, player) { }
 
     public override void Enter()
     {
         Debug.Log("Enter Jump");
         player.PerformJump();
-        hasStartedFalling = false;
     }
 
     public override void Update()
